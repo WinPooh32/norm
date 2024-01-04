@@ -8,8 +8,8 @@ NORM is **N**ot an **ORM**.
 
 It does:
 
-- provide **unified** CRUD API for your queries;
+- provide a **unified** CRUD API for your queries;
 - use generics for your types;
-- **not** generate sql migrations;
+- **not** generate SQL migrations;
 - **not** generate queries from structs;
 - **not** manage transactions.
