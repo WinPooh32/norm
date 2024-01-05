@@ -16,6 +16,14 @@ jobs:
         uses: actions/setup-go@v2
         with:
           go-version: "1.19"
+      
+      - name: Test main package
+        run: go test -v ./...
 
-      - name: Test with Docker
+      - name: Test SQL
+        working-directory: ./driver/sql
+        run: go test -v ./...
+
+      - name: Test drivers with databases
+        working-directory: ./driver/tests
         run: go test -v ./...

@@ -1,4 +1,4 @@
-package sql
+package tests
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/WinPooh32/norm"
+	normsql "github.com/WinPooh32/norm/driver/sql"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"github.com/stretchr/testify/assert"
@@ -254,7 +255,7 @@ func TestObject_Create(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	modelObject := NewObject[ModelShort, Args](setupQueries())
+	modelObject := normsql.NewObject[ModelShort, Args](setupQueries())
 
 	err := modelObject.Create(context.Background(),
 		Args{
@@ -277,7 +278,7 @@ func TestObject_Create_Error_NotAffected(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	modelObject := NewObject[ModelEmpty, FilterID](
+	modelObject := normsql.NewObject[ModelEmpty, FilterID](
 		db,
 		`INSERT INTO "tests_2" (
 			"id", 
@@ -326,7 +327,7 @@ func TestObject_Read(t *testing.T) {
 		FieldC: 1,
 	}
 
-	modelObject := NewObject[ModelShort, Args](setupQueries())
+	modelObject := normsql.NewObject[ModelShort, Args](setupQueries())
 
 	err := modelObject.Create(context.Background(),
 		Args{
@@ -344,7 +345,7 @@ func TestObject_Read(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	modelObject = NewObject[ModelShort, Args](setupQueries())
+	modelObject = normsql.NewObject[ModelShort, Args](setupQueries())
 
 	got, err := modelObject.Read(context.Background(), Args{ID: "qwerty"})
 
@@ -357,7 +358,7 @@ func TestObject_Read_Error_NotFound(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	modelObject := NewObject[ModelShort, Args](setupQueries())
+	modelObject := normsql.NewObject[ModelShort, Args](setupQueries())
 
 	err := modelObject.Create(context.Background(),
 		Args{
@@ -375,7 +376,7 @@ func TestObject_Read_Error_NotFound(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	modelObject = NewObject[ModelShort, Args](setupQueries())
+	modelObject = normsql.NewObject[ModelShort, Args](setupQueries())
 
 	_, err = modelObject.Read(context.Background(), Args{ID: "qwerty123"})
 
@@ -403,14 +404,14 @@ func TestObject_Update(t *testing.T) {
 		FieldC: 666,
 	}
 
-	modelObject := NewObject[ModelShort, Args](setupQueries())
+	modelObject := normsql.NewObject[ModelShort, Args](setupQueries())
 
 	err := modelObject.Update(context.Background(), Args{ID: updateID}, update)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	modelObject = NewObject[ModelShort, Args](setupQueries())
+	modelObject = normsql.NewObject[ModelShort, Args](setupQueries())
 
 	got, err := modelObject.Read(context.Background(), Args{ID: updateID})
 	if err != nil {
@@ -427,7 +428,7 @@ func TestObject_Update_Error_NotAffected(t *testing.T) {
 
 	updateID := "-1"
 
-	modelObject := NewObject[ModelShort, Args](setupQueries())
+	modelObject := normsql.NewObject[ModelShort, Args](setupQueries())
 
 	err := modelObject.Update(context.Background(), Args{ID: updateID}, ModelShort{})
 
@@ -443,14 +444,14 @@ func TestObject_Delete(t *testing.T) {
 
 	deleteID := "id01"
 
-	modelObject := NewObject[ModelShort, Args](setupQueries())
+	modelObject := normsql.NewObject[ModelShort, Args](setupQueries())
 
 	err := modelObject.Delete(context.Background(), Args{ID: deleteID})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	modelObject = NewObject[ModelShort, Args](setupQueries())
+	modelObject = normsql.NewObject[ModelShort, Args](setupQueries())
 
 	_, err = modelObject.Read(context.Background(), Args{ID: deleteID})
 
@@ -466,7 +467,7 @@ func TestObject_Delete_Error_NotAffected(t *testing.T) {
 
 	deleteID := "-1"
 
-	modelObject := NewObject[ModelShort, Args](setupQueries())
+	modelObject := normsql.NewObject[ModelShort, Args](setupQueries())
 
 	err := modelObject.Delete(context.Background(), Args{ID: deleteID})
 
@@ -492,8 +493,8 @@ func TestObject_WithTransaction(t *testing.T) {
 	}
 	defer tx2.Rollback()
 
-	ctxTx1 := WithTransaction(context.Background(), tx1)
-	ctxTx2 := WithTransaction(context.Background(), tx2)
+	ctxTx1 := normsql.WithTransaction(context.Background(), tx1)
+	ctxTx2 := normsql.WithTransaction(context.Background(), tx2)
 
 	id := "id01"
 
@@ -503,7 +504,7 @@ func TestObject_WithTransaction(t *testing.T) {
 		FieldC: 1234,
 	}
 
-	modelObject := NewObject[ModelShort, Args](setupQueries())
+	modelObject := normsql.NewObject[ModelShort, Args](setupQueries())
 
 	err = modelObject.Delete(ctxTx1, Args{ID: id})
 	if err != nil {
@@ -548,7 +549,7 @@ func TestView_Read(t *testing.T) {
 		UpdatedAt: time.Date(2001, 9, 28, 23, 0, 0, 0, time.UTC),
 	}
 
-	modelView := NewView[Model, FilterID](setupViewQueries())
+	modelView := normsql.NewView[Model, FilterID](setupViewQueries())
 
 	got, err := modelView.Read(context.Background(), FilterID{
 		ID: "id01",
@@ -568,7 +569,7 @@ func TestView_Read_Error_NotFound(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	modelView := NewView[Model, FilterID](setupViewQueries())
+	modelView := normsql.NewView[Model, FilterID](setupViewQueries())
 
 	_, err := modelView.Read(context.Background(), FilterID{
 		ID: "-1",
@@ -607,7 +608,7 @@ func TestView_Read_Slice(t *testing.T) {
 		},
 	}
 
-	modelsView := NewView[[]Model, FilterIDs](db, `
+	modelsView := normsql.NewView[[]Model, FilterIDs](db, `
 	SELECT 
 		"id", 
 		"field_a",
@@ -645,7 +646,7 @@ func TestView_Read_Slice_EmptyResult(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	modelsView := NewView[[]Model, FilterIDs](db, `
+	modelsView := normsql.NewView[[]Model, FilterIDs](db, `
 	SELECT 
 		"id", 
 		"field_a",
