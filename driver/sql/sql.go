@@ -37,17 +37,17 @@ func NewObject[Model, Args any](db *sql.DB, c, r, u, d string) norm.Object[Model
 	var m Model
 
 	return norm.NewObject[Model, Args](
-		&pgCreator[Model, Args]{
-			pgWriter[Model, Args]{db, c},
+		&creator[Model, Args]{
+			writer[Model, Args]{db, c},
 		},
-		&pgReader[Model, Args]{
+		&reader[Model, Args]{
 			db, r, isSlice(m),
 		},
-		&pgUpdater[Model, Args]{
-			pgWriter[Model, Args]{db, u},
+		&updater[Model, Args]{
+			writer[Model, Args]{db, u},
 		},
-		&pgDeleter[Model, Args]{
-			pgWriter[Model, Args]{db, d},
+		&deleter[Model, Args]{
+			writer[Model, Args]{db, d},
 		},
 	)
 }
@@ -55,7 +55,7 @@ func NewObject[Model, Args any](db *sql.DB, c, r, u, d string) norm.Object[Model
 func NewView[Model, Args any](db *sql.DB, r string) norm.View[Model, Args] {
 	var m Model
 
-	reader := &pgReader[Model, Args]{
+	reader := &reader[Model, Args]{
 		db:        db,
 		tpl:       r,
 		scanSlice: isSlice(m),
@@ -77,37 +77,37 @@ type ma[Model, Args any] struct {
 	A Args
 }
 
-type pgCreator[Model, Args any] struct {
-	pgWriter[Model, Args]
+type creator[Model, Args any] struct {
+	writer[Model, Args]
 }
 
-func (c *pgCreator[Model, Args]) Create(ctx context.Context, args Args, value Model) error {
+func (c *creator[Model, Args]) Create(ctx context.Context, args Args, value Model) error {
 	return c.affect(ctx, args, value)
 }
 
-type pgUpdater[Model, Args any] struct {
-	pgWriter[Model, Args]
+type updater[Model, Args any] struct {
+	writer[Model, Args]
 }
 
-func (u *pgUpdater[Model, Args]) Update(ctx context.Context, args Args, value Model) error {
+func (u *updater[Model, Args]) Update(ctx context.Context, args Args, value Model) error {
 	return u.affect(ctx, args, value)
 }
 
-type pgDeleter[Model, Args any] struct {
-	pgWriter[Model, Args]
+type deleter[Model, Args any] struct {
+	writer[Model, Args]
 }
 
-func (d *pgDeleter[Model, Args]) Delete(ctx context.Context, args Args) error {
+func (d *deleter[Model, Args]) Delete(ctx context.Context, args Args) error {
 	var nop Model
 	return d.affect(ctx, args, nop)
 }
 
-type pgWriter[Model, Args any] struct {
+type writer[Model, Args any] struct {
 	db  *sql.DB
 	tpl string
 }
 
-func (w *pgWriter[Model, Args]) affect(ctx context.Context, args Args, value Model) error {
+func (w *writer[Model, Args]) affect(ctx context.Context, args Args, value Model) error {
 	pr := newPreparer(txValue(ctx), w.db)
 	if err := w.exec(ctx, pr, args, value); err != nil {
 		return err
@@ -116,7 +116,7 @@ func (w *pgWriter[Model, Args]) affect(ctx context.Context, args Args, value Mod
 	return nil
 }
 
-func (w *pgWriter[Model, Args]) exec(ctx context.Context, pr preparer, args Args, value Model) error {
+func (w *writer[Model, Args]) exec(ctx context.Context, pr preparer, args Args, value Model) error {
 	stmtRaw, stmtArgs, err := tq.Compile(w.tpl, ma[Model, Args]{M: value, A: args})
 	if err != nil {
 		return fmt.Errorf("compile query template: %w", err)
@@ -140,13 +140,13 @@ func (w *pgWriter[Model, Args]) exec(ctx context.Context, pr preparer, args Args
 	return nil
 }
 
-type pgReader[Model, Args any] struct {
+type reader[Model, Args any] struct {
 	db        *sql.DB
 	tpl       string
 	scanSlice bool
 }
 
-func (r *pgReader[Model, Args]) Read(ctx context.Context, args Args) (value Model, err error) {
+func (r *reader[Model, Args]) Read(ctx context.Context, args Args) (value Model, err error) {
 	pr := newPreparer(txValue(ctx), r.db)
 
 	rows, err := r.query(ctx, pr, args)
@@ -172,7 +172,7 @@ func (r *pgReader[Model, Args]) Read(ctx context.Context, args Args) (value Mode
 	return value, nil
 }
 
-func (r *pgReader[Model, Args]) query(ctx context.Context, pr preparer, args Args) (rows *sql.Rows, err error) {
+func (r *reader[Model, Args]) query(ctx context.Context, pr preparer, args Args) (rows *sql.Rows, err error) {
 	stmtRaw, stmtArgs, err := tq.Compile(r.tpl, a[Args]{A: args})
 	if err != nil {
 		return nil, fmt.Errorf("compile query template: %w", err)
