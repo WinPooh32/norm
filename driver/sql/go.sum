@@ -1,5 +1,7 @@
 github.com/VauntDev/tqla v0.0.1 h1:NVoNgY+qIRzG2j+Kw6DyLfE274lvQBV9zV8e1BaJXrM=
 github.com/VauntDev/tqla v0.0.1/go.mod h1:cwJGFN9JyZ/4kROc3jyR3TgW4OulSACJDH1qinWcuu8=
+github.com/WinPooh32/norm v0.0.2 h1:FvMF2e0jaq6uji7Pl0T+wJjjMLnrvIfwInZRXAekYMM=
+github.com/WinPooh32/norm v0.0.2/go.mod h1:FJEAABLol9b9fBVJKt726KaiUBBEyTIGNXU7rao38eo=
 github.com/blockloop/scan/v2 v2.5.0 h1:/yNcCwftYn3wf5BJsJFO9E9P48l45wThdUnM3WcDF+o=
 github.com/blockloop/scan/v2 v2.5.0/go.mod h1:OFYyMocUdRW3DUWehPI/fSsnpNMUNiyUaYXRMY5NMIY=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
