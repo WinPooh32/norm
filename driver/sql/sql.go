@@ -33,81 +33,83 @@ func txValue(ctx context.Context) *sql.Tx {
 	return tx.(*sql.Tx)
 }
 
-func NewObject[Model, Args any](db *sql.DB, c, r, u, d string) norm.Object[Model, Args] {
-	var m Model
-
-	return norm.NewObject[Model, Args](
-		&creator[Model, Args]{
-			writer[Model, Args]{db, c},
-		},
-		&reader[Model, Args]{
-			db, r, isSlice(m),
-		},
-		&updater[Model, Args]{
-			writer[Model, Args]{db, u},
-		},
-		&deleter[Model, Args]{
-			writer[Model, Args]{db, d},
-		},
-	)
+type Object[M, A any] struct {
+	creator[M, A]
+	reader[M, A]
+	updater[M, A]
+	deleter[M, A]
 }
 
-func NewView[Model, Args any](db *sql.DB, r string) norm.View[Model, Args] {
-	var m Model
+type View[M, A any] struct {
+	reader[M, A]
+}
 
-	reader := &reader[Model, Args]{
-		db:        db,
-		tpl:       r,
-		scanSlice: isSlice(m),
+func NewObject[M, A any](db *sql.DB, c, r, u, d string) Object[M, A] {
+	var m M
+
+	return Object[M, A]{
+		creator: creator[M, A]{writer[M, A]{db, c}},
+		reader:  reader[M, A]{db, r, isSlice(m)},
+		updater: updater[M, A]{writer[M, A]{db, u}},
+		deleter: deleter[M, A]{writer[M, A]{db, d}},
 	}
+}
 
-	return norm.NewView[Model, Args](reader)
+func NewView[M, A any](db *sql.DB, r string) View[M, A] {
+	var m M
+	return View[M, A]{
+		reader: reader[M, A]{
+			db:        db,
+			tpl:       r,
+			scanSlice: isSlice(m),
+		},
+	}
 }
 
 type preparer interface {
 	PrepareContext(ctx context.Context, query string) (*sql.Stmt, error)
 }
 
-type a[Args any] struct {
-	A Args
+type a[A any] struct {
+	A A
 }
 
-type ma[Model, Args any] struct {
-	M Model
-	A Args
+type ma[M, A any] struct {
+	M M
+	A A
 }
 
-type creator[Model, Args any] struct {
-	writer[Model, Args]
+type creator[M, A any] struct {
+	writer[M, A]
 }
 
-func (c *creator[Model, Args]) Create(ctx context.Context, args Args, value Model) error {
+func (c creator[M, A]) Create(ctx context.Context, args A, value M) error {
 	return c.affect(ctx, args, value)
 }
 
-type updater[Model, Args any] struct {
-	writer[Model, Args]
+type updater[M, A any] struct {
+	writer[M, A]
 }
 
-func (u *updater[Model, Args]) Update(ctx context.Context, args Args, value Model) error {
+func (u updater[M, A]) Update(ctx context.Context, args A, value M) error {
 	return u.affect(ctx, args, value)
 }
 
-type deleter[Model, Args any] struct {
-	writer[Model, Args]
+type deleter[M, A any] struct {
+	writer[M, A]
 }
 
-func (d *deleter[Model, Args]) Delete(ctx context.Context, args Args) error {
-	var nop Model
+func (d deleter[M, A]) Delete(ctx context.Context, args A) error {
+	var nop M
 	return d.affect(ctx, args, nop)
 }
 
-type writer[Model, Args any] struct {
+type writer[M, A any] struct {
 	db  *sql.DB
 	tpl string
 }
 
-func (w *writer[Model, Args]) affect(ctx context.Context, args Args, value Model) error {
+func (w writer[M, A]) affect(ctx context.Context, args A, value M) error {
 	pr := newPreparer(txValue(ctx), w.db)
 	if err := w.exec(ctx, pr, args, value); err != nil {
 		return err
@@ -116,8 +118,8 @@ func (w *writer[Model, Args]) affect(ctx context.Context, args Args, value Model
 	return nil
 }
 
-func (w *writer[Model, Args]) exec(ctx context.Context, pr preparer, args Args, value Model) error {
-	stmtRaw, stmtArgs, err := tq.Compile(w.tpl, ma[Model, Args]{M: value, A: args})
+func (w writer[M, A]) exec(ctx context.Context, pr preparer, args A, value M) error {
+	stmtRaw, stmtA, err := tq.Compile(w.tpl, ma[M, A]{M: value, A: args})
 	if err != nil {
 		return fmt.Errorf("compile query template: %w", err)
 	}
@@ -127,7 +129,7 @@ func (w *writer[Model, Args]) exec(ctx context.Context, pr preparer, args Args, 
 		return fmt.Errorf("prepare query: %w", err)
 	}
 
-	res, err := stmt.ExecContext(ctx, stmtArgs...)
+	res, err := stmt.ExecContext(ctx, stmtA...)
 	if err != nil {
 		return err
 	}
@@ -140,13 +142,13 @@ func (w *writer[Model, Args]) exec(ctx context.Context, pr preparer, args Args, 
 	return nil
 }
 
-type reader[Model, Args any] struct {
+type reader[M, A any] struct {
 	db        *sql.DB
 	tpl       string
 	scanSlice bool
 }
 
-func (r *reader[Model, Args]) Read(ctx context.Context, args Args) (value Model, err error) {
+func (r reader[M, A]) Read(ctx context.Context, args A) (value M, err error) {
 	pr := newPreparer(txValue(ctx), r.db)
 
 	rows, err := r.query(ctx, pr, args)
@@ -172,8 +174,8 @@ func (r *reader[Model, Args]) Read(ctx context.Context, args Args) (value Model,
 	return value, nil
 }
 
-func (r *reader[Model, Args]) query(ctx context.Context, pr preparer, args Args) (rows *sql.Rows, err error) {
-	stmtRaw, stmtArgs, err := tq.Compile(r.tpl, a[Args]{A: args})
+func (r reader[M, A]) query(ctx context.Context, pr preparer, args A) (rows *sql.Rows, err error) {
+	stmtRaw, stmtA, err := tq.Compile(r.tpl, a[A]{A: args})
 	if err != nil {
 		return nil, fmt.Errorf("compile query template: %w", err)
 	}
@@ -183,7 +185,7 @@ func (r *reader[Model, Args]) query(ctx context.Context, pr preparer, args Args)
 		return nil, fmt.Errorf("prepare query: %w", err)
 	}
 
-	rows, err = stmt.QueryContext(ctx, stmtArgs...)
+	rows, err = stmt.QueryContext(ctx, stmtA...)
 	if err != nil {
 		return nil, fmt.Errorf("run query: %w", err)
 	}
