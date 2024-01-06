@@ -71,8 +71,8 @@ func init(){
     )
 }
 
-func main(ctx context.Context){
-    values, _ := modelsView.Read(ctx, ArgsIDs{
+func main(){
+    values, _ := modelsView.Read(context.Background(), ArgsIDs{
         IDs: []string{"id01", "id02"},
     })
 
