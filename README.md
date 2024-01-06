@@ -13,3 +13,70 @@ It does:
 - **not** generate SQL migrations;
 - **not** generate queries from structs;
 - **not** manage transactions.
+
+## Examples
+
+### SQL
+
+#### View of the model list
+
+```go
+package main
+
+import (
+    "context"
+    "database/sql"
+    
+    "github.com/WinPooh32/norm"
+    normsql "github.com/WinPooh32/norm/driver/sql"
+    "github.com/lib/pq"
+)
+
+type Model struct {
+    ID        string    `db:"id"`
+    FieldA    string    `db:"field_a"`
+    FieldB    string    `db:"field_b"`
+    FieldC    int       `db:"field_c"`
+    CreatedAt time.Time `db:"created_at"`
+    UpdatedAt time.Time `db:"updated_at"`
+}
+
+type ArgIDs struct {
+    IDs pq.StringArray
+}
+
+var db *sql.DB
+
+var modelsView norm.View[[]Model, ArgIDs]
+
+func init(){
+    // Connect to the database.
+    db = ...
+
+    modelsView = normsql.NewView[[]Model, ArgIDs](db, `
+    SELECT 
+        "id", 
+        "field_a",
+        "field_b",
+        "field_c",
+        "created_at",
+        "updated_at"
+    FROM 
+        "tests" 
+    WHERE 
+        "id" = ANY( {{ .A.IDs }} )
+    ORDER BY 
+        "id" ASC
+    ;`,
+    )
+}
+
+func main(ctx context.Context){
+    values, _ := modelsView.Read(ctx, ArgsIDs{
+        IDs: []string{"id01", "id02"},
+    })
+
+    fmt.Println(values)
+}
+
+```
