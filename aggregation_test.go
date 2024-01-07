@@ -35,7 +35,7 @@ func TestLookup(t *testing.T) {
 		wantErr   bool
 	}{
 		{
-			name: "with mathes",
+			name: "with matches",
 			args: args{
 				ctx:     context.Background(),
 				lhs:     mem{[]kint{1, 2, 3, 4, 5}},
@@ -53,7 +53,7 @@ func TestLookup(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "no match",
+			name: "no matches",
 			args: args{
 				ctx:     context.Background(),
 				lhs:     mem{[]kint{1, 2, 3, 4, 5}},
