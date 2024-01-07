@@ -237,6 +237,11 @@ func setupPersistentQueries() (_ *sql.DB, c, r, u string) {
 	return db, c, r, u
 }
 
+func setupImmutableQueries() (_ *sql.DB, c, r string) {
+	db, c, r, _, _ = setupQueries()
+	return db, c, r
+}
+
 func setupViewQueries() (_ *sql.DB, r string) {
 	return db, `
 	SELECT 
@@ -262,6 +267,7 @@ func TestObject_Create(t *testing.T) {
 	}{
 		{"object", normsql.NewObject[ModelShort, Args](setupQueries())},
 		{"persistent object", normsql.NewPersistentObject[ModelShort, Args](setupPersistentQueries())},
+		{"immutable object", normsql.NewImmutableObject[ModelShort, Args](setupImmutableQueries())},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -269,7 +275,13 @@ func TestObject_Create(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			err := tt.c.Create(context.Background(),
+			want := ModelShort{
+				FieldA: "a",
+				FieldB: "b",
+				FieldC: 1,
+			}
+
+			if err := tt.c.Create(context.Background(),
 				Args{
 					ID:        "qwerty",
 					CreatedAt: time.Date(2001, 9, 28, 23, 0, 0, 0, time.UTC),
@@ -280,9 +292,32 @@ func TestObject_Create(t *testing.T) {
 					FieldB: "b",
 					FieldC: 1,
 				},
-			)
+			); err != nil {
+				t.Fatal(err)
+			}
 
-			assert.NoError(t, err)
+			row := db.QueryRow(`
+			SELECT 
+				"field_a",
+				"field_b",
+				"field_c"
+			FROM 
+				"tests" 
+			WHERE 
+				"id" = 'qwerty'
+			;`)
+
+			var got ModelShort
+
+			if err := row.Scan(
+				&got.FieldA,
+				&got.FieldB,
+				&got.FieldC,
+			); err != nil {
+				t.Fatal(err)
+			}
+
+			assert.Equal(t, want, got)
 		})
 	}
 }
@@ -316,6 +351,7 @@ func TestObject_Create_Error_NotAffected(t *testing.T) {
 	}{
 		{"object", normsql.NewObject[ModelEmpty, FilterID](db, c, ``, ``, ``)},
 		{"persistent object", normsql.NewPersistentObject[ModelEmpty, FilterID](db, c, ``, ``)},
+		{"immutable object", normsql.NewImmutableObject[ModelEmpty, FilterID](db, c, ``)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -383,6 +419,11 @@ func TestObject_Read(t *testing.T) {
 			r:    normsql.NewPersistentObject[ModelShort, Args](setupPersistentQueries()),
 			want: want,
 		},
+		{
+			name: "immutable object",
+			r:    normsql.NewImmutableObject[ModelShort, Args](setupImmutableQueries()),
+			want: want,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -417,6 +458,10 @@ func TestObject_Read_Error_NotFound(t *testing.T) {
 		{
 			name: "persistent object",
 			r:    normsql.NewPersistentObject[ModelShort, Args](setupPersistentQueries()),
+		},
+		{
+			name: "immutable object",
+			r:    normsql.NewImmutableObject[ModelShort, Args](setupImmutableQueries()),
 		},
 	}
 	for _, tt := range tests {

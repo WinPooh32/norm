@@ -72,6 +72,13 @@ func NewPersistentObject[M, A any](db *sql.DB, c, r, u string) PersistentObject[
 	}
 }
 
+func NewImmutableObject[M, A any](db *sql.DB, c, r string) ImmutableObject[M, A] {
+	return ImmutableObject[M, A]{
+		creator: creator[M, A]{writer[M, A]{db, c}},
+		reader:  reader[M, A]{db, r, isSlice[M]()},
+	}
+}
+
 func NewView[M, A any](db *sql.DB, r string) View[M, A] {
 	return View[M, A]{
 		reader: reader[M, A]{
