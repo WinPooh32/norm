@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/VauntDev/tqla v0.0.1
-	github.com/WinPooh32/norm v0.0.2
+	github.com/WinPooh32/norm v0.0.3
 )
 
 require (
