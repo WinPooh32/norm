@@ -175,7 +175,7 @@ type FilterID struct {
 	ID string
 }
 
-func setupQueries() (_ *sql.DB, c string, r string, u string, d string) {
+func setupQueries() (_ *sql.DB, c, r, u, d string) {
 	c = `
 INSERT INTO "tests" (
 	"id", 
@@ -232,6 +232,11 @@ WHERE
 	return db, c, r, u, d
 }
 
+func setupPersistentQueries() (_ *sql.DB, c, r, u string) {
+	db, c, r, u, _ = setupQueries()
+	return db, c, r, u
+}
+
 func setupViewQueries() (_ *sql.DB, r string) {
 	return db, `
 	SELECT 
@@ -251,152 +256,190 @@ func setupViewQueries() (_ *sql.DB, r string) {
 type ModelEmpty struct{}
 
 func TestObject_Create(t *testing.T) {
-	if err := resetDB(t, db); err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name string
+		c    norm.Creator[ModelShort, Args]
+	}{
+		{"object", normsql.NewObject[ModelShort, Args](setupQueries())},
+		{"persistent object", normsql.NewPersistentObject[ModelShort, Args](setupPersistentQueries())},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := resetDB(t, db); err != nil {
+				t.Fatal(err)
+			}
 
-	modelObject := normsql.NewObject[ModelShort, Args](setupQueries())
+			err := tt.c.Create(context.Background(),
+				Args{
+					ID:        "qwerty",
+					CreatedAt: time.Date(2001, 9, 28, 23, 0, 0, 0, time.UTC),
+					UpdatedAt: time.Date(2001, 9, 28, 23, 0, 0, 0, time.UTC),
+				},
+				ModelShort{
+					FieldA: "a",
+					FieldB: "b",
+					FieldC: 1,
+				},
+			)
 
-	err := modelObject.Create(context.Background(),
-		Args{
-			ID:        "qwerty",
-			CreatedAt: time.Date(2001, 9, 28, 23, 0, 0, 0, time.UTC),
-			UpdatedAt: time.Date(2001, 9, 28, 23, 0, 0, 0, time.UTC),
-		},
-		ModelShort{
-			FieldA: "a",
-			FieldB: "b",
-			FieldC: 1,
-		},
-	)
-
-	assert.NoError(t, err)
+			assert.NoError(t, err)
+		})
+	}
 }
 
 func TestObject_Create_Error_NotAffected(t *testing.T) {
-	if err := resetDB(t, db); err != nil {
-		t.Fatal(err)
-	}
-
-	modelObject := normsql.NewObject[ModelEmpty, FilterID](
-		db,
-		`INSERT INTO "tests_2" (
+	const c = `INSERT INTO "tests_2" (
+		"id", 
+		"field_a",
+		"field_b",
+		"field_c",
+		"created_at",
+		"updated_at"
+	) 
+	(
+		SELECT
 			"id", 
 			"field_a",
 			"field_b",
 			"field_c",
 			"created_at",
 			"updated_at"
-		) 
-		(
-			SELECT
-				"id", 
-				"field_a",
-				"field_b",
-				"field_c",
-				"created_at",
-				"updated_at"
-			FROM 
-				"tests_2"
-			WHERE 
-				"id" = {{.A.ID}}
-		)`,
-		``, ``, ``,
-	)
+		FROM 
+			"tests_2"
+		WHERE 
+			"id" = {{.A.ID}}
+	)`
 
-	err := modelObject.Create(context.Background(),
-		FilterID{
-			ID: "not found",
-		},
-		ModelEmpty{},
-	)
+	tests := []struct {
+		name string
+		c    norm.Creator[ModelEmpty, FilterID]
+	}{
+		{"object", normsql.NewObject[ModelEmpty, FilterID](db, c, ``, ``, ``)},
+		{"persistent object", normsql.NewPersistentObject[ModelEmpty, FilterID](db, c, ``, ``)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := resetDB(t, db); err != nil {
+				t.Fatal(err)
+			}
 
-	if assert.Error(t, err) {
-		assert.ErrorIs(t, err, norm.ErrNotAffected)
+			err := tt.c.Create(context.Background(),
+				FilterID{
+					ID: "not found",
+				},
+				ModelEmpty{},
+			)
+
+			if assert.Error(t, err) {
+				assert.ErrorIs(t, err, norm.ErrNotAffected)
+			}
+		})
 	}
 }
 
-func TestObject_Read(t *testing.T) {
-	if err := resetDB(t, db); err != nil {
-		t.Fatal(err)
+func create(t *testing.T, id string) error {
+	t.Helper()
+
+	modelObject := normsql.NewObject[ModelShort, Args](setupQueries())
+
+	err := modelObject.Create(context.Background(),
+		Args{
+			ID:        id,
+			CreatedAt: time.Date(2001, 9, 28, 23, 0, 0, 0, time.UTC),
+			UpdatedAt: time.Date(2001, 9, 28, 23, 0, 0, 0, time.UTC),
+		},
+		ModelShort{
+			FieldA: "a",
+			FieldB: "b",
+			FieldC: 1,
+		},
+	)
+	if err != nil {
+		return err
 	}
 
+	return nil
+}
+
+func TestObject_Read(t *testing.T) {
 	want := ModelShort{
 		FieldA: "a",
 		FieldB: "b",
 		FieldC: 1,
 	}
-
-	modelObject := normsql.NewObject[ModelShort, Args](setupQueries())
-
-	err := modelObject.Create(context.Background(),
-		Args{
-			ID:        "qwerty",
-			CreatedAt: time.Date(2001, 9, 28, 23, 0, 0, 0, time.UTC),
-			UpdatedAt: time.Date(2001, 9, 28, 23, 0, 0, 0, time.UTC),
+	tests := []struct {
+		name string
+		args Args
+		r    norm.Reader[ModelShort, Args]
+		want ModelShort
+	}{
+		{
+			name: "object",
+			r:    normsql.NewObject[ModelShort, Args](setupQueries()),
+			want: want,
 		},
-		ModelShort{
-			FieldA: "a",
-			FieldB: "b",
-			FieldC: 1,
+		{
+			name: "persistent object",
+			r:    normsql.NewPersistentObject[ModelShort, Args](setupPersistentQueries()),
+			want: want,
 		},
-	)
-	if err != nil {
-		t.Fatal(err)
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := resetDB(t, db); err != nil {
+				t.Fatal(err)
+			}
 
-	modelObject = normsql.NewObject[ModelShort, Args](setupQueries())
+			const id = "qwerty"
 
-	got, err := modelObject.Read(context.Background(), Args{ID: "qwerty"})
+			if err := create(t, id); err != nil {
+				t.Fatal(err)
+			}
 
-	assert.NoError(t, err)
-	assert.Equal(t, want, got)
+			got, err := tt.r.Read(context.Background(), Args{ID: id})
+
+			assert.NoError(t, err)
+			assert.Equal(t, want, got)
+		})
+	}
 }
 
 func TestObject_Read_Error_NotFound(t *testing.T) {
-	if err := resetDB(t, db); err != nil {
-		t.Fatal(err)
-	}
-
-	modelObject := normsql.NewObject[ModelShort, Args](setupQueries())
-
-	err := modelObject.Create(context.Background(),
-		Args{
-			ID:        "qwerty",
-			CreatedAt: time.Date(2001, 9, 28, 23, 0, 0, 0, time.UTC),
-			UpdatedAt: time.Date(2001, 9, 28, 23, 0, 0, 0, time.UTC),
+	tests := []struct {
+		name string
+		args Args
+		r    norm.Reader[ModelShort, Args]
+	}{
+		{
+			name: "object",
+			r:    normsql.NewObject[ModelShort, Args](setupQueries()),
 		},
-		ModelShort{
-			FieldA: "a",
-			FieldB: "b",
-			FieldC: 1,
+		{
+			name: "persistent object",
+			r:    normsql.NewPersistentObject[ModelShort, Args](setupPersistentQueries()),
 		},
-	)
-	if err != nil {
-		t.Fatal(err)
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := resetDB(t, db); err != nil {
+				t.Fatal(err)
+			}
 
-	modelObject = normsql.NewObject[ModelShort, Args](setupQueries())
+			if err := create(t, "qwerty0"); err != nil {
+				t.Fatal(err)
+			}
 
-	_, err = modelObject.Read(context.Background(), Args{ID: "qwerty123"})
+			_, err := tt.r.Read(context.Background(), Args{ID: "qwerty_1"})
 
-	if assert.Error(t, err) {
-		assert.ErrorIs(t, err, norm.ErrNotFound)
+			if assert.Error(t, err) {
+				assert.ErrorIs(t, err, norm.ErrNotFound)
+			}
+		})
 	}
 }
 
 func TestObject_Update(t *testing.T) {
-	if err := resetDB(t, db); err != nil {
-		t.Fatal(err)
-	}
-
-	want := ModelShort{
-		FieldA: "updated_a",
-		FieldB: "updated_b",
-		FieldC: 666,
-	}
-
-	updateID := "id01"
+	args := Args{ID: "id01"}
 
 	update := ModelShort{
 		FieldA: "updated_a",
@@ -404,36 +447,94 @@ func TestObject_Update(t *testing.T) {
 		FieldC: 666,
 	}
 
-	modelObject := normsql.NewObject[ModelShort, Args](setupQueries())
-
-	err := modelObject.Update(context.Background(), Args{ID: updateID}, update)
-	if err != nil {
-		t.Fatal(err)
+	want := ModelShort{
+		FieldA: "updated_a",
+		FieldB: "updated_b",
+		FieldC: 666,
 	}
 
-	modelObject = normsql.NewObject[ModelShort, Args](setupQueries())
-
-	got, err := modelObject.Read(context.Background(), Args{ID: updateID})
-	if err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name   string
+		u      norm.Updater[ModelShort, Args]
+		r      norm.Reader[ModelShort, Args]
+		args   Args
+		update ModelShort
+		want   ModelShort
+	}{
+		{
+			name:   "object",
+			u:      normsql.NewObject[ModelShort, Args](setupQueries()),
+			r:      normsql.NewObject[ModelShort, Args](setupQueries()),
+			args:   args,
+			update: update,
+			want:   want,
+		},
+		{
+			name:   "persistent object",
+			u:      normsql.NewPersistentObject[ModelShort, Args](setupPersistentQueries()),
+			r:      normsql.NewPersistentObject[ModelShort, Args](setupPersistentQueries()),
+			args:   args,
+			update: update,
+			want:   want,
+		},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := resetDB(t, db); err != nil {
+				t.Fatal(err)
+			}
 
-	assert.Equal(t, want, got)
+			err := tt.u.Update(context.Background(), tt.args, tt.update)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			got, err := tt.r.Read(context.Background(), tt.args)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
 func TestObject_Update_Error_NotAffected(t *testing.T) {
-	if err := resetDB(t, db); err != nil {
-		t.Fatal(err)
+	args := Args{ID: "-1"}
+
+	update := ModelShort{}
+
+	tests := []struct {
+		name   string
+		u      norm.Updater[ModelShort, Args]
+		args   Args
+		update ModelShort
+	}{
+		{
+			name:   "object",
+			u:      normsql.NewObject[ModelShort, Args](setupQueries()),
+			args:   args,
+			update: update,
+		},
+		{
+			name:   "persistent object",
+			u:      normsql.NewPersistentObject[ModelShort, Args](setupPersistentQueries()),
+			args:   args,
+			update: update,
+		},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := resetDB(t, db); err != nil {
+				t.Fatal(err)
+			}
 
-	updateID := "-1"
+			err := tt.u.Update(context.Background(), tt.args, tt.update)
 
-	modelObject := normsql.NewObject[ModelShort, Args](setupQueries())
-
-	err := modelObject.Update(context.Background(), Args{ID: updateID}, ModelShort{})
-
-	if assert.Error(t, err) {
-		assert.ErrorIs(t, err, norm.ErrNotAffected)
+			if assert.Error(t, err) {
+				assert.ErrorIs(t, err, norm.ErrNotAffected)
+			}
+		})
 	}
 }
 

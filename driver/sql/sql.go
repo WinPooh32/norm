@@ -40,6 +40,17 @@ type Object[M, A any] struct {
 	deleter[M, A]
 }
 
+type PersistentObject[M, A any] struct {
+	creator[M, A]
+	reader[M, A]
+	updater[M, A]
+}
+
+type ImmutableObject[M, A any] struct {
+	creator[M, A]
+	reader[M, A]
+}
+
 type View[M, A any] struct {
 	reader[M, A]
 }
@@ -50,6 +61,14 @@ func NewObject[M, A any](db *sql.DB, c, r, u, d string) Object[M, A] {
 		reader:  reader[M, A]{db, r, isSlice[M]()},
 		updater: updater[M, A]{writer[M, A]{db, u}},
 		deleter: deleter[M, A]{writer[M, A]{db, d}},
+	}
+}
+
+func NewPersistentObject[M, A any](db *sql.DB, c, r, u string) PersistentObject[M, A] {
+	return PersistentObject[M, A]{
+		creator: creator[M, A]{writer[M, A]{db, c}},
+		reader:  reader[M, A]{db, r, isSlice[M]()},
+		updater: updater[M, A]{writer[M, A]{db, u}},
 	}
 }
 
