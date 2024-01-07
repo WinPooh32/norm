@@ -1,6 +1,9 @@
 package norm
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 type Merge[M1, M2 any] struct {
 	L M1
@@ -28,12 +31,12 @@ func Lookup[
 ) {
 	l, err := lhs.Read(ctx, lhsArgs)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read lhs: %w", err)
 	}
 
 	r, err := rhs.Read(ctx, rhsArgs)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read rhs: %w", err)
 	}
 
 	return _lookup[M1, M2, T1, T2, K](l, r), nil
