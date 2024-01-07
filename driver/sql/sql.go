@@ -45,23 +45,20 @@ type View[M, A any] struct {
 }
 
 func NewObject[M, A any](db *sql.DB, c, r, u, d string) Object[M, A] {
-	var m M
-
 	return Object[M, A]{
 		creator: creator[M, A]{writer[M, A]{db, c}},
-		reader:  reader[M, A]{db, r, isSlice(m)},
+		reader:  reader[M, A]{db, r, isSlice[M]()},
 		updater: updater[M, A]{writer[M, A]{db, u}},
 		deleter: deleter[M, A]{writer[M, A]{db, d}},
 	}
 }
 
 func NewView[M, A any](db *sql.DB, r string) View[M, A] {
-	var m M
 	return View[M, A]{
 		reader: reader[M, A]{
 			db:        db,
 			tpl:       r,
-			scanSlice: isSlice(m),
+			scanSlice: isSlice[M](),
 		},
 	}
 }
@@ -193,7 +190,8 @@ func (r reader[M, A]) query(ctx context.Context, pr preparer, args A) (rows *sql
 	return rows, nil
 }
 
-func isSlice(v any) bool {
+func isSlice[M any]() bool {
+	var v M
 	return reflect.TypeOf(v).Kind() == reflect.Slice
 }
 
