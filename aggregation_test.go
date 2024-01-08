@@ -153,3 +153,86 @@ func TestLookup(t *testing.T) {
 		})
 	}
 }
+
+func TestGroup(t *testing.T) {
+	type args struct {
+		ctx  context.Context
+		r    Reader[[]kint, struct{}]
+		args struct{}
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantGroups map[int][]kint
+		wantErr    bool
+	}{
+		{
+			name: "empty values",
+			args: args{
+				ctx:  context.Background(),
+				r:    mem{[]kint{}},
+				args: struct{}{},
+			},
+			wantGroups: map[int][]kint{},
+			wantErr:    false,
+		},
+		{
+			name: "nil values",
+			args: args{
+				ctx:  context.Background(),
+				r:    mem{[]kint{}},
+				args: struct{}{},
+			},
+			wantGroups: map[int][]kint{},
+			wantErr:    false,
+		},
+		{
+			name: "one element per group",
+			args: args{
+				ctx:  context.Background(),
+				r:    mem{[]kint{1, 2, 3, 4, 5}},
+				args: struct{}{},
+			},
+			wantGroups: map[int][]kint{
+				1: {1},
+				2: {2},
+				3: {3},
+				4: {4},
+				5: {5},
+			},
+			wantErr: false,
+		},
+		{
+			name: "several elements per group",
+			args: args{
+				ctx:  context.Background(),
+				r:    mem{[]kint{4, 1, 2, 3, 2, 4, 5, 4, 1, 4, 1}},
+				args: struct{}{},
+			},
+			wantGroups: map[int][]kint{
+				1: {1, 1, 1},
+				2: {2, 2},
+				3: {3},
+				4: {4, 4, 4, 4},
+				5: {5},
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotGroups, err := Group[
+				[]kint, kint, struct{}, int,
+			](
+				tt.args.ctx, tt.args.r, tt.args.args,
+			)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Group() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(gotGroups, tt.wantGroups) {
+				t.Errorf("Group() = %v, want %v", gotGroups, tt.wantGroups)
+			}
+		})
+	}
+}

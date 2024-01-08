@@ -42,6 +42,27 @@ func Lookup[
 	return _lookup[M1, M2, T1, T2, K](l, r), nil
 }
 
+// Group performs values grouping.
+func Group[
+	M ~[]T,
+	T Keyer[K],
+	A any,
+	K comparable,
+](
+	ctx context.Context,
+	r Reader[M, A],
+	args A,
+) (
+	groups map[K][]T,
+	err error,
+) {
+	values, err := r.Read(ctx, args)
+	if err != nil {
+		return nil, fmt.Errorf("read lhs: %w", err)
+	}
+	return _group[M, T, K](values)
+}
+
 func _lookup[
 	M1 ~[]T1,
 	M2 ~[]T2,
@@ -79,4 +100,22 @@ func _lookup[
 	}
 
 	return out
+}
+
+func _group[
+	M ~[]T,
+	T Keyer[K],
+	K comparable,
+](
+	values M,
+) (
+	groups map[K][]T,
+	err error,
+) {
+	groups = make(map[K][]T, len(values))
+	for _, v := range values {
+		k := v.Key()
+		groups[k] = append(groups[k], v)
+	}
+	return
 }
