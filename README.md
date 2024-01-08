@@ -19,6 +19,21 @@ It does:
 - [SQL](https://pkg.go.dev/github.com/WinPooh32/norm/driver/sql)
 - MongoDB (TODO)
 
+## Aggregation
+
+For using in-memory aggregation functions model type must implement this interface:
+
+```go
+type Keyer[K comparable] interface {
+    Key() K
+}
+```
+
+Available functions:
+
+- [Lookup](https://pkg.go.dev/github.com/WinPooh32/norm#Lookup) - left outer join
+- [Group](https://pkg.go.dev/github.com/WinPooh32/norm#Group) - values grouping
+
 ## Examples
 
 ### SQL
